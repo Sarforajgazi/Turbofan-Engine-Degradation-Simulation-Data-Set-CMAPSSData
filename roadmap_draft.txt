@@ -1,0 +1,31 @@
+Roadmap
+1. EDA / understanding the signal
+Load FD001 first (single condition, single fault — simplest case)
+Plot a few engines' sensor trajectories over their lifetime to see degradation trends
+Identify near-constant sensors (several of the 21 barely vary in FD001 — e.g., sensors 1, 5, 6, 10, 16, 18, 19) — decide whether to keep or drop them
+Check sensor correlations (many are physically coupled, e.g., T30/T50/P30)
+2. Build RUL labels
+Training set: RUL at each row = (max cycle for that engine) − (current cycle)
+Apply the standard piecewise-linear cap (e.g., clip RUL at 125 cycles) since engines are healthy early on and RUL isn't meaningfully predictable from sensors before degradation starts
+Test set: use the provided RUL_FD001.txt as ground truth for the final cycle of each test engine
+3. Preprocessing
+Normalize/scale sensors (z-score is standard); for FD002/FD004, normalize within each of the 6 operating regimes separately, since raw values shift with condition
+Drop or flag near-constant sensors
+4. Design your missingness experiment (this is the imputation-specific part)
+Choose a mechanism: MCAR (random points), MAR (condition-dependent), MNAR (fails more near end-of-life), or block/sequence dropout (contiguous cycles missing — most realistic for real sensor outages)
+Choose a missingness rate (e.g., 5%, 10%, 20%) so you can see how imputation quality degrades
+Hold out the true values before masking so you have ground truth to score against
+5. Impute
+Baselines: forward-fill, linear interpolation, mean/median
+Stronger: KNN imputation, MICE (multiple imputation by chained equations)
+Sequence-aware: LSTM/GRU autoencoder or a simple denoising model, since this is time-series and neighboring cycles carry strong signal
+6. Evaluate imputation itself
+RMSE/MAE between imputed and true values, per sensor and per missingness rate/mechanism
+7. Evaluate downstream impact (the more interesting part)
+Train your RUL model (LSTM/GRU/CNN/Transformer or even windowed gradient boosting) on clean data → get baseline RMSE/score
+Retrain/re-evaluate with imputed data at each missingness rate → see how much RUL prediction degrades
+This tells you whether imputation quality actually matters for the task, not just in isolation
+8. RUL modeling (main event, once imputation pipeline is validated)
+Sliding-window sequences per engine (fixed window length or full sequence with padding/masking)
+Model options: LSTM/GRU, 1D-CNN, Transformer encoder, or simpler windowed feature + XGBoost
+Evaluate with RMSE and the paper's asymmetric scoring function (Eq. 11 — penalizes late predictions more than early ones)
